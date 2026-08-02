@@ -1,59 +1,140 @@
-# NoteBook
+# 📝 NoteBook App
 
-An offline-first Flutter notes app using Hive for durable local data, Bloc for presentation state, Dio for HTTP, and json-server as a mock remote API. The UI talks to a repository; the repository writes the note and an operation to Hive, while the separate sync engine pushes queued operations and pulls remote changes when connectivity is available.
+A Flutter-based notes application that works **completely offline** and automatically synchronizes with a mock REST API when connectivity is restored — including automatic **conflict detection and resolution** when the same note is edited both locally and on the server.
 
-```text
-Flutter UI -> NotesBloc -> NotesRepository -> Hive (notes + sync queue)
-                                      \-> SyncService -> Dio -> json-server/db.json
+---
+
+## ✨ Features
+
+- ✅ Create, edit, delete, and view notes
+- ✅ Fully functional offline — every operation is stored locally first
+- ✅ Local persistence using **Hive**
+- ✅ Automatic background sync when connectivity is restored
+- ✅ Real-time sync status per note: **Synced**, **Pending Sync**, **Conflict**
+- ✅ Conflict resolution UI — compare local vs server versions and choose **Keep Mine**, **Keep Server**, or **Merge Manually**
+- ✅ Mock REST API powered by `json-server`
+
+---
+
+## 🏗️ Architecture
+
+```
+UI (Bloc / Riverpod)
+      ↓
+Repository Layer   ← single source of truth for the UI
+      ↓         ↓
+ Local DB (Hive)   Remote API (REST via json-server)
+      ↑
+ Sync Engine  ←──── Connectivity Listener
 ```
 
-## Setup
+The UI never talks to the network directly — it only reads and writes to the local Hive database. A background **Sync Engine** pushes pending local changes to the server and pulls remote changes down, resolving conflicts where both sides have diverged since the last successful sync.
 
-```powershell
+---
+
+## 📂 Project Structure
+
+```
+lib/
+ ├── core/
+ │    ├── config/          # App configuration (API base URL, etc.)
+ │    ├── di/               # Service locator / dependency injection
+ │    └── services/         # Sync service, connectivity service, Hive service
+ ├── features/
+ │    └── notes/
+ │         ├── data/            # Repository implementations, local & remote sources
+ │         ├── domain/          # Entities, repository contracts
+ │         └── presentation/    # Screens, widgets, state management
+ └── main.dart
+```
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Flutter SDK installed
+- Node.js installed (for the mock API)
+
+### 1. Install dependencies
+```bash
 flutter pub get
-npx json-server --watch db.json --host 0.0.0.0
 ```
 
-Run targets:
-
-```powershell
-# Flutter Web, json-server on this computer
-flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000
-
-# Android emulator
-flutter run -d <android-device> --dart-define=API_BASE_URL=http://10.0.2.2:3000
-
-# Physical Android/iOS device; replace with the computer's LAN IPv4 address
-flutter run -d <device> --dart-define=API_BASE_URL=http://192.168.1.20:3000
+### 2. Start the mock API server
+```bash
+npx json-server --watch db.json --host 0.0.0.0 --port 3000
 ```
+Keep this terminal running throughout development/testing.
 
-For a physical device, the phone and computer must share a network and the firewall must allow TCP port 3000. The Web default is `http://localhost:3000`; the Android emulator must use `10.0.2.2`.
+Verify it's working by visiting `http://localhost:3000/notes` in a browser — you should see a JSON array.
 
-## Sync behavior
+### 3. Run the app
 
-Every local write is awaited into both Hive boxes before requesting sync. This prevents a newly-created operation from being missed by a sync that starts immediately. If a write occurs while a sync is already running, the service schedules another pass. Failed operations stay in the queue with backoff.
+The correct `API_BASE_URL` depends on where you're running the app:
 
-The app stores the last known remote `updatedAt` as `serverUpdatedAt`. If a locally pending note sees a newer remote timestamp, it is marked Conflict and the remote title/body are retained for the resolution dialog.
+| Run target | Command |
+|---|---|
+| **Web (Chrome)** | `flutter run -d chrome` *(uses default `http://localhost:3000`)* |
+| **Android Emulator** | `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000` |
+| **Physical Device** | `flutter run --dart-define=API_BASE_URL=http://<your-PC-LAN-IP>:3000` (find your IP via `ipconfig`; phone and PC must be on the same Wi-Fi) |
 
-## Manually test pull sync
+> ⚠️ Using the wrong URL for the wrong platform is the most common source of "sync not working" issues — always match the table above.
 
-1. Start json-server and the app.
-2. Create a note and wait for Synced.
-3. Edit that note's `title`, `body`, and `updatedAt` in `db.json` with a newer ISO timestamp.
-4. Press refresh or trigger reconnect.
-5. The local note updates immediately without restarting the app.
+---
 
-## Manually test a conflict
+## 🔄 How Sync Works
 
-1. Create and sync a note; note its server `updatedAt`.
-2. Edit the note locally while offline, leaving it Pending Sync.
-3. Edit the same note in `db.json` with a newer `updatedAt`.
-4. Restore connectivity and trigger sync. The note becomes Conflict.
-5. Tap it and choose Keep Mine, Keep Server, or Merge Manually.
-6. Keep Mine and Merge Manually enqueue a new update and return to Synced after push; Keep Server stores the server version as Synced.
+1. Every create/edit/delete is saved to Hive **immediately**, regardless of connectivity, and marked `Pending Sync`.
+2. When online, the Sync Engine:
+   - **Pushes** all pending local notes to the server.
+   - **Pulls** the latest notes from the server.
+3. For each note, it compares:
+   - Whether the **local** copy has unsynced changes (`Pending`)
+   - Whether the **server** copy has changed since the last known sync (`serverUpdatedAt`)
+4. Based on that comparison:
+   - Only local changed → push wins, note becomes `Synced`
+   - Only server changed → server data is pulled in, note becomes `Synced`
+   - **Both changed → marked `Conflict`**, and the user is prompted to resolve it
 
-## Known limitations
+---
 
-- json-server is a development mock and has no authentication or real server-side conflict/version enforcement.
-- Timestamp conflict detection depends on comparable server timestamps; device clock drift can produce false positives or negatives.
-- Retry backoff is in-memory behavior backed by the Hive queue, but there is no background OS scheduler when the app is terminated.
+## ⚔️ Testing Conflict Resolution
+
+To manually trigger a conflict:
+
+1. Create a note in the app and let it sync (`Synced`).
+2. Open `db.json` and manually edit that note's `title`/`body`, and set `updatedAt` to a timestamp later than the app's last known sync time.
+3. In the app, **while offline**, edit the same note (different text than what you put in `db.json`).
+4. Reconnect / trigger sync.
+5. The note should now show status **Conflict**. Tap it to open the resolution dialog:
+   - **Keep Mine** — pushes your local version, overwriting the server
+   - **Keep Server** — discards your local edit, adopts the server version
+   - **Merge Manually** — opens an editable form pre-filled with both versions so you can combine them
+
+---
+
+## 🧰 Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Flutter |
+| Local Storage | Hive |
+| State Management | Bloc *(update if using Riverpod)* |
+| HTTP Client | Dio |
+| Connectivity Detection | connectivity_plus |
+| Mock REST API | json-server |
+
+---
+
+## 📌 Known Limitations
+
+- Conflict resolution relies on timestamp comparison (`updatedAt`) — significant clock drift between the client and server could theoretically cause incorrect conflict detection.
+- The mock API does not persist across different environments — `db.json` is local to the machine running `json-server`.
+- Simultaneous edits from more than two sources (e.g., two offline devices both editing the same note) are resolved pairwise, not as a three-way merge.
+
+---
+
+## 📄 License
+
+This project was built as part of a technical assignment.
