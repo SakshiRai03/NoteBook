@@ -1,0 +1,31 @@
+{
+  "notes": [
+    {
+      "id": "SJgwVvt2dH4",
+      "title": "Grocery List",
+      "body": "Milk, eggs, bread, vegetables",
+      "updatedAt": "2026-08-02T15:10:15.329",
+      "syncStatus": "pending",
+      "isDeleted": false,
+      "lastSyncedAt": "2026-08-02T15:10:01.639",
+      "serverUpdatedAt": "2026-08-02T15:08:30.641",
+      "conflictTitle": null,
+      "conflictBody": null,
+      "conflictUpdatedAt": null
+    },
+    {
+      "id": "MR_ninlakrU",
+      "title": "Meeting Notes",
+      "body": "Discuss Q3 targets with team, prepare slides by Friday",
+      "updatedAt": "2026-08-02T15:09:37.870",
+      "syncStatus": "pending",
+      "isDeleted": false,
+      "lastSyncedAt": null,
+      "serverUpdatedAt": null,
+      "conflictTitle": null,
+      "conflictBody": null,
+      "conflictUpdatedAt": null
+    }
+  ],
+  "$schema": "./node_modules/json-server/schema.json"
+}
