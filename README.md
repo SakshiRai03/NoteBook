@@ -1,4 +1,4 @@
-# Offline First Notes
+# NoteBook
 
 An offline-first Flutter notes app using Hive for durable local data, Bloc for presentation state, Dio for HTTP, and json-server as a mock remote API. The UI talks to a repository; the repository writes the note and an operation to Hive, while the separate sync engine pushes queued operations and pulls remote changes when connectivity is available.
 
